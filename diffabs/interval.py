@@ -2,7 +2,7 @@
     Vanilla Interval: Simply propagates using interval arithmetic without any optimization.
 """
 
-from __future__ import annotations
+# from __future__ import annotations
 
 from pathlib import Path
 from typing import Tuple, Union, Iterator, Callable, Iterable
@@ -34,7 +34,7 @@ class Ele(AbsEle):
         return
 
     @classmethod
-    def by_intvl(cls, lb: Tensor, ub: Tensor) -> Ele:
+    def by_intvl(cls, lb: Tensor, ub: Tensor) -> 'Ele':
         return Ele(lb, ub)
 
     def __iter__(self) -> Iterator[Tensor]:
@@ -61,16 +61,16 @@ class Ele(AbsEle):
     def ub(self) -> Tensor:
         return self._ub
 
-    def view(self, *shape) -> Ele:
+    def view(self, *shape) -> 'Ele':
         return Ele(self._lb.view(*shape), self._ub.view(*shape))
 
-    def contiguous(self) -> Ele:
+    def contiguous(self) -> 'Ele':
         return Ele(self._lb.contiguous(), self._ub.contiguous())
 
-    def transpose(self, dim0, dim1) -> Ele:
+    def transpose(self, dim0, dim1) -> 'Ele':
         return Ele(self._lb.transpose(dim0, dim1), self._ub.transpose(dim0, dim1))
 
-    def matmul(self, weights: Tensor) -> Ele:
+    def matmul(self, weights: Tensor) -> 'Ele':
         """ A much faster trick:
                 L' = max(0, w) * L + min(0, w) * U
                 U' = max(0, w) * U + min(0, w) * L
@@ -86,13 +86,13 @@ class Ele(AbsEle):
         newu = newu_pos + newu_neg
         return Ele(newl, newu)
 
-    def __add__(self, other) -> Ele:
+    def __add__(self, other) -> 'Ele':
         if isinstance(other, Ele):
             return Ele(self._lb + other._lb, self._ub + other._ub)
         else:
             return Ele(self._lb + other, self._ub + other)
 
-    def __mul__(self, flt) -> Ele:
+    def __mul__(self, flt) -> 'Ele':
         if isinstance(flt, Tensor) and flt.dim() == 1 and flt.shape[0] == self.size()[-1]:
             # each output vector dimension has its own factor
             pos_ws, neg_ws = divide_pos_neg(flt)
@@ -114,7 +114,7 @@ class Ele(AbsEle):
         else:
             return Ele(self._ub * flt, self._lb * flt)
 
-    def __rmul__(self, flt) -> Ele:
+    def __rmul__(self, flt) -> 'Ele':
         return self.__mul__(flt)
     pass
 
@@ -284,7 +284,7 @@ class Linear(nn.Linear):
         return f'{Dom.name}.' + super().__str__()
 
     @classmethod
-    def from_module(cls, src: nn.Linear) -> Linear:
+    def from_module(cls, src: nn.Linear) -> 'Linear':
         with_bias = src.bias is not None
         new_lin = Linear(src.in_features, src.out_features, with_bias)
         new_lin.load_state_dict(src.state_dict())

@@ -5,7 +5,7 @@
     so it's not that useful to optimize the other two alone. Perhaps just use smaller batch_size in training.
 """
 
-from __future__ import annotations
+# from __future__ import annotations
 
 from pathlib import Path
 from typing import Union, Tuple, List, Iterator, Iterable
@@ -24,6 +24,7 @@ class Dom(AbsDom):
     def __getattr__(self, name: str) -> object:
         assert name in globals()
         return eval(name)
+
     pass
 
 
@@ -47,7 +48,7 @@ class Ele(AbsEle):
         return
 
     @classmethod
-    def by_intvl(cls, lb: Tensor, ub: Tensor, *args, **kwargs) -> Ele:
+    def by_intvl(cls, lb: Tensor, ub: Tensor, *args, **kwargs) -> 'Ele':
         assert lb.device == ub.device
         assert valid_lb_ub(lb, ub)
 
@@ -160,7 +161,7 @@ class Ele(AbsEle):
             self._ub = self.ub_of(self._ucoef, self._ucnst, self.dlb, self.dub)
             return self._ub
 
-    def view(self, *shape) -> Ele:
+    def view(self, *shape) -> 'Ele':
         assert len(shape) > 1
 
         flat_size = self._lcoef.size()[1]
@@ -175,12 +176,12 @@ class Ele(AbsEle):
         newu_cnsts = self._ucnst.view(*shape_cnsts)
         return Ele(newl_coefs, newl_cnsts, newu_coefs, newu_cnsts, self.dlb, self.dub)
 
-    def contiguous(self) -> Ele:
+    def contiguous(self) -> 'Ele':
         return Ele(self._lcoef.contiguous(), self._lcnst.contiguous(),
                    self._ucoef.contiguous(), self._ucnst.contiguous(),
                    self.dlb, self.dub)
 
-    def transpose(self, dim0, dim1) -> Ele:
+    def transpose(self, dim0, dim1) -> 'Ele':
         if dim0 == 0 or dim1 == 0:
             raise ValueError('Who would transpose the batch dimension?!')
 
@@ -194,7 +195,7 @@ class Ele(AbsEle):
             self.dlb, self.dub
         )
 
-    def matmul(self, weights: Tensor) -> Ele:
+    def matmul(self, weights: Tensor) -> 'Ele':
         """ Basically,
                 L' = max(0, w) * L + min(0, w) * U
                 U' = max(0, w) * U + min(0, w) * L
@@ -206,7 +207,8 @@ class Ele(AbsEle):
             :param csl: coefficients for lower
             :param csu: coefficients for upper
             """
-            return csl.matmul(pos_ws) + csu.matmul(neg_ws)  # Batch x FlatDim0 (or 1) x ... x Dim_in <matmul> Dim_in x Dim_out
+            return csl.matmul(pos_ws) + csu.matmul(
+                neg_ws)  # Batch x FlatDim0 (or 1) x ... x Dim_in <matmul> Dim_in x Dim_out
 
         newl_coef = _new_lower(self._lcoef, self._ucoef)
         newl_cnst = _new_lower(self._lcnst, self._ucnst)
@@ -216,14 +218,15 @@ class Ele(AbsEle):
             :param csl: coefficients for lower
             :param csu: coefficients for upper
             """
-            return csu.matmul(pos_ws) + csl.matmul(neg_ws)  # Batch x FlatDim0 (or 1) x ... x Dim_in <matmul> Dim_in x Dim_out
+            return csu.matmul(pos_ws) + csl.matmul(
+                neg_ws)  # Batch x FlatDim0 (or 1) x ... x Dim_in <matmul> Dim_in x Dim_out
 
         newu_coef = _new_upper(self._lcoef, self._ucoef)
         newu_cnst = _new_upper(self._lcnst, self._ucnst)
 
         return Ele(newl_coef, newl_cnst, newu_coef, newu_cnst, self.dlb, self.dub)
 
-    def __add__(self, other: Union[Ele, int, float, Tensor]) -> Ele:
+    def __add__(self, other: Union['Ele', int, float, Tensor]) -> 'Ele':
         """ Addition only changes the constant part in coefficients. """
         if isinstance(other, Ele):
             assert torch.equal(self.dlb, other.dlb) and torch.equal(self.dub, other.dub)
@@ -233,10 +236,10 @@ class Ele(AbsEle):
             biases = other
             return Ele(self._lcoef, self._lcnst + biases, self._ucoef, self._ucnst + biases, self.dlb, self.dub)
 
-    def __radd__(self, other) -> Ele:
+    def __radd__(self, other) -> 'Ele':
         return self.__add__(other)
 
-    def __mul__(self, flt) -> Ele:
+    def __mul__(self, flt) -> 'Ele':
         if isinstance(flt, Tensor) and flt.dim() == 1 and flt.shape[0] == self.size()[-1]:
             # each output vector dimension has its own factor
             flt_coefs = flt.expand_as(self._lcoef)
@@ -261,8 +264,9 @@ class Ele(AbsEle):
         else:
             return Ele(self._ucoef * flt, self._ucnst * flt, self._lcoef * flt, self._lcnst * flt, self.dlb, self.dub)
 
-    def __rmul__(self, flt) -> Ele:
+    def __rmul__(self, flt) -> 'Ele':
         return self.__mul__(flt)
+
     pass
 
 
@@ -278,6 +282,7 @@ def cat0(es: Iterable[Ele]) -> Ele:
 
 class Dist(AbsDist):
     """ DeepPoly domain is relational, thus it can be computed symbolically beforehand. """
+
     def __init__(self, eps: float = 1e-5):
         """
         :param eps: add to break the tie when choosing max/min.
@@ -388,6 +393,7 @@ class Dist(AbsDist):
         # then it needs to surpass everybody else, thus use torch.max() for maximum distance
         diffs, _ = torch.max(all_diffs, dim=-1)
         return diffs
+
     pass
 
 
@@ -403,8 +409,8 @@ class BlackSheep(AbsBlackSheep):
             # default lb-ub or ub-lb doesn't know that target domain has distance 0, so specify that explicitly
             lefts_coef = piece._ucoef[..., :cat]
             lefts_cnst = piece._ucnst[..., :cat]
-            rights_coef = piece._ucoef[..., cat+1:]
-            rights_cnst = piece._ucnst[..., cat+1:]
+            rights_coef = piece._ucoef[..., cat + 1:]
+            rights_cnst = piece._ucnst[..., cat + 1:]
             target_coef = piece._lcoef[..., [cat]]  # Batch x FlatDim0 x 1
             target_cnst = piece._lcnst[..., [cat]]  # Batch x 1 x 1
 
@@ -432,8 +438,8 @@ class BlackSheep(AbsBlackSheep):
             # default lb-ub or ub-lb doesn't know that target domain has distance 0, so specify that explicitly
             lefts_coef = piece._lcoef[..., :cat]
             lefts_cnst = piece._lcnst[..., :cat]
-            rights_coef = piece._lcoef[..., cat+1:]
-            rights_cnst = piece._lcnst[..., cat+1:]
+            rights_coef = piece._lcoef[..., cat + 1:]
+            rights_cnst = piece._lcnst[..., cat + 1:]
             target_coef = piece._ucoef[..., [cat]]  # Batch x FlatDim0 x 1
             target_cnst = piece._ucnst[..., [cat]]  # Batch x 1 x 1
 
@@ -451,6 +457,7 @@ class BlackSheep(AbsBlackSheep):
         raise NotImplementedError('To use this as distance, it has to have target category not being max, ' +
                                   'thus use torch.min(dim=-1) then ReLU().')
         return res
+
     pass
 
 
@@ -462,7 +469,7 @@ class Linear(nn.Linear):
         return f'{Dom.name}.' + super().__str__()
 
     @classmethod
-    def from_module(cls, src: nn.Linear) -> Linear:
+    def from_module(cls, src: nn.Linear) -> 'Linear':
         with_bias = src.bias is not None
         new_lin = Linear(src.in_features, src.out_features, with_bias)
         new_lin.load_state_dict(src.state_dict())
@@ -493,6 +500,7 @@ class Linear(nn.Linear):
 
         out = forward_linear(self, e)
         return out if input_is_ele else tuple(out)
+
     pass
 
 
@@ -503,6 +511,7 @@ class Conv2d(nn.Conv2d):
         gradients still have to be stored for backprop. This may be alleviated by using center symmetric domains like
         Zonotope where the computation only applies to the numbers once.
     """
+
     def __str__(self):
         return f'{Dom.name}.' + super().__str__()
 
@@ -551,13 +560,15 @@ class Conv2d(nn.Conv2d):
             ## 1 ##  center  ## 1 ##
             ########### 2 ##########
         '''
+
         def _pad(orig: Tensor) -> Tensor:
             dim1 = orig.size()[1]  # either flat_size for coefs or 1 for cnsts
             if pad_w > 0:
                 zs = torch.zeros(img_b, dim1, img_c, img_h, pad_w, device=orig.device)
                 orig = torch.cat((zs, orig, zs), dim=-1)
             if pad_h > 0:
-                zs = torch.zeros(img_b, dim1, img_c, pad_h, img_w + 2 * pad_w, device=orig.device)  # width has increased
+                zs = torch.zeros(img_b, dim1, img_c, pad_h, img_w + 2 * pad_w,
+                                 device=orig.device)  # width has increased
                 orig = torch.cat((zs, orig, zs), dim=-2)
             return orig
 
@@ -573,11 +584,11 @@ class Conv2d(nn.Conv2d):
             but allocates/caches more memory (max 10.2GB vs max 4.4GB).
         '''
         out = self._conv(e, img_b, flat_size, cnt_h, cnt_w, fil_h, fil_w, stride_h, stride_w,
-                              full_lb_coefs, full_lb_cnsts, full_ub_coefs, full_ub_cnsts)
+                         full_lb_coefs, full_lb_cnsts, full_ub_coefs, full_ub_cnsts)
         return out if input_is_ele else tuple(out)
 
     def _conv(self, e, img_b, flat_size, cnt_h, cnt_w, fil_h, fil_w, stride_h, stride_w,
-                   full_lb_coefs, full_lb_cnsts, full_ub_coefs, full_ub_cnsts) -> Ele:
+              full_lb_coefs, full_lb_cnsts, full_ub_coefs, full_ub_cnsts) -> Ele:
         """ Collect all filtered sub-images in a large batch. """
         filtered_lb_coefs, filtered_lb_cnsts = [], []
         filtered_ub_coefs, filtered_ub_cnsts = [], []
@@ -590,10 +601,11 @@ class Conv2d(nn.Conv2d):
                 w_start = j * stride_w
                 w_end = w_start + fil_w
 
-                sub_lb_coefs = full_lb_coefs[..., h_start : h_end, w_start : w_end]  # Batch x FlatDim0 x InC x FilterH x FilterW
-                sub_lb_cnsts = full_lb_cnsts[..., h_start : h_end, w_start : w_end]
-                sub_ub_coefs = full_ub_coefs[..., h_start : h_end, w_start : w_end]
-                sub_ub_cnsts = full_ub_cnsts[..., h_start : h_end, w_start : w_end]
+                sub_lb_coefs = full_lb_coefs[..., h_start: h_end,
+                               w_start: w_end]  # Batch x FlatDim0 x InC x FilterH x FilterW
+                sub_lb_cnsts = full_lb_cnsts[..., h_start: h_end, w_start: w_end]
+                sub_ub_coefs = full_ub_coefs[..., h_start: h_end, w_start: w_end]
+                sub_ub_cnsts = full_ub_cnsts[..., h_start: h_end, w_start: w_end]
 
                 row_lb_coefs.append(sub_lb_coefs)
                 row_lb_cnsts.append(sub_lb_cnsts)
@@ -601,7 +613,8 @@ class Conv2d(nn.Conv2d):
                 row_ub_cnsts.append(sub_ub_cnsts)
 
             row_lb_coefs = torch.stack(row_lb_coefs, dim=2)  # dim=2: right after Batch x FlatDim0 x ...
-            row_lb_cnsts = torch.stack(row_lb_cnsts, dim=2)  # Now Batch x FlatDim0 x OutW x InC x FilterH x FilterW FIXME
+            row_lb_cnsts = torch.stack(row_lb_cnsts,
+                                       dim=2)  # Now Batch x FlatDim0 x OutW x InC x FilterH x FilterW FIXME
             row_ub_coefs = torch.stack(row_ub_coefs, dim=2)
             row_ub_cnsts = torch.stack(row_ub_cnsts, dim=2)
             filtered_lb_coefs.append(row_lb_coefs)
@@ -610,7 +623,8 @@ class Conv2d(nn.Conv2d):
             filtered_ub_cnsts.append(row_ub_cnsts)
 
         filtered_lb_coefs = torch.stack(filtered_lb_coefs, dim=2)  # dim=2: right after Batch x FlatDim0 x ... again
-        filtered_lb_cnsts = torch.stack(filtered_lb_cnsts, dim=2)  # Now Batch x FlatDim0 x OutH x OutW x InC x FilterH x FilterW FIXME
+        filtered_lb_cnsts = torch.stack(filtered_lb_cnsts,
+                                        dim=2)  # Now Batch x FlatDim0 x OutH x OutW x InC x FilterH x FilterW FIXME
         filtered_ub_coefs = torch.stack(filtered_ub_coefs, dim=2)
         filtered_ub_cnsts = torch.stack(filtered_ub_cnsts, dim=2)
 
@@ -705,6 +719,7 @@ class Conv2d(nn.Conv2d):
 
         # utils.pp_cuda_mem('Conv: After final stacking')
         return Ele(full_lcoefs, full_lcnsts, full_ucoefs, full_ucnsts, e.dlb, e.dub)
+
     pass
 
 
@@ -712,6 +727,7 @@ class Clamp(nn.Module):
     """ Basically a generalized version of ReLU, clamp() for an abstract element may also be over-approximated.
         Note that now there are two bars, to maintain the validity of LB<=UB, both may be over-approximated.
     """
+
     def __init__(self, min: float, max: float):
         super().__init__()
         self.min = min
@@ -857,6 +873,7 @@ class Clamp(nn.Module):
 
         out = Ele(full_lb_coefs, full_lb_cnsts, full_ub_coefs, full_ub_cnsts, e.dlb, e.dub)
         return out if input_is_ele else tuple(out)
+
     pass
 
 
@@ -979,6 +996,7 @@ class ReLU(nn.ReLU):
 
         new_e = Ele(new_lcoef, new_lcnst, new_ucoef, new_ucnst, e.dlb, e.dub)
         return new_e if input_is_ele else tuple(new_e)
+
     pass
 
 
@@ -1081,6 +1099,7 @@ class Tanh(nn.Tanh):
         # utils.pp_cuda_mem('Tanh: After everything')
         new_e = Ele(full_lcoef, full_lcnst, full_ucoef, full_ucnst, e.dlb, e.dub)
         return new_e if input_is_ele else tuple(new_e)
+
     pass
 
 
@@ -1088,6 +1107,7 @@ class MaxPool1d(nn.MaxPool1d):
     """ I have to implement the forward computation by myself, because F.max_pool1d() requires input to be Tensors.
         Note that the MaxPool1d takes input of shape Batch x InChannel(Planes) x Data.
     """
+
     def __str__(self):
         return f'{Dom.name}.' + super().__str__()
 
@@ -1159,11 +1179,13 @@ class MaxPool1d(nn.MaxPool1d):
 
         out = Ele(newl_coefs, newl_cnsts, newu_coefs, newu_cnsts, e.dlb, e.dub)
         return out if input_is_ele else tuple(out)
+
     pass
 
 
 class MaxPool2d(nn.MaxPool2d):
     """ MaxPool2d layer with the ability to take in approximations rather than concrete inputs. """
+
     def __str__(self):
         return f'{Dom.name}.' + super().__str__()
 
@@ -1223,7 +1245,7 @@ class MaxPool2d(nn.MaxPool2d):
         return out if input_is_ele else tuple(out)
 
     def _pool(self, e, img_b, flat_size, img_c, cnt_h, cnt_w, fil_h, fil_w, stride_h, stride_w,
-                   full_lb_coefs, full_lb_cnsts, full_ub_coefs, full_ub_cnsts) -> Ele:
+              full_lb_coefs, full_lb_cnsts, full_ub_coefs, full_ub_cnsts) -> Ele:
         """ Collect all filtered sub-images in a large batch. """
         filtered_lb_coefs, filtered_lb_cnsts = [], []
         filtered_ub_coefs, filtered_ub_cnsts = [], []
@@ -1236,10 +1258,11 @@ class MaxPool2d(nn.MaxPool2d):
                 w_start = j * stride_w
                 w_end = w_start + fil_w
 
-                sub_lb_coefs = full_lb_coefs[..., h_start : h_end, w_start : w_end]  # Batch x FlatDim0 x InC x FilterH x FilterW
-                sub_lb_cnsts = full_lb_cnsts[..., h_start : h_end, w_start : w_end]
-                sub_ub_coefs = full_ub_coefs[..., h_start : h_end, w_start : w_end]
-                sub_ub_cnsts = full_ub_cnsts[..., h_start : h_end, w_start : w_end]
+                sub_lb_coefs = full_lb_coefs[..., h_start: h_end,
+                               w_start: w_end]  # Batch x FlatDim0 x InC x FilterH x FilterW
+                sub_lb_cnsts = full_lb_cnsts[..., h_start: h_end, w_start: w_end]
+                sub_ub_coefs = full_ub_coefs[..., h_start: h_end, w_start: w_end]
+                sub_ub_cnsts = full_ub_cnsts[..., h_start: h_end, w_start: w_end]
                 row_lb_coefs.append(sub_lb_coefs)
                 row_lb_cnsts.append(sub_lb_cnsts)
                 row_ub_coefs.append(sub_ub_coefs)
@@ -1256,15 +1279,18 @@ class MaxPool2d(nn.MaxPool2d):
 
         # utils.pp_cuda_mem('Pool: After fast enumeration')
 
-        filtered_lb_coefs = torch.stack(filtered_lb_coefs, dim=3)  # dim=3: right after Batch x FlatDim0 x InC x ... again
-        filtered_lb_cnsts = torch.stack(filtered_lb_cnsts, dim=3)  # Now Batch x FlatDim0 x InC x OutH x OutW x FilterH x FilterW
+        filtered_lb_coefs = torch.stack(filtered_lb_coefs,
+                                        dim=3)  # dim=3: right after Batch x FlatDim0 x InC x ... again
+        filtered_lb_cnsts = torch.stack(filtered_lb_cnsts,
+                                        dim=3)  # Now Batch x FlatDim0 x InC x OutH x OutW x FilterH x FilterW
         filtered_ub_coefs = torch.stack(filtered_ub_coefs, dim=3)
         filtered_ub_cnsts = torch.stack(filtered_ub_cnsts, dim=3)
 
         # utils.pp_cuda_mem('Pool: After fast stacking')
 
         filtered_e = Ele(filtered_lb_coefs, filtered_lb_cnsts, filtered_ub_coefs, filtered_ub_cnsts, e.dlb, e.dub)
-        filtered_e = filtered_e.view(img_b, img_c, cnt_h, cnt_w, -1)  # Batch x FlatDim0/1 x InC x OutH x OutW x (FilterH*FilterW)
+        filtered_e = filtered_e.view(img_b, img_c, cnt_h, cnt_w,
+                                     -1)  # Batch x FlatDim0/1 x InC x OutH x OutW x (FilterH*FilterW)
 
         # utils.pp_cuda_mem('Pool: After fast reshaping')
 
@@ -1301,7 +1327,8 @@ class MaxPool2d(nn.MaxPool2d):
                 w_start = j * stride_w
                 w_end = w_start + fil_w
 
-                tmp_lb_coefs = full_lb_coefs[..., h_start: h_end, w_start: w_end]  # Batch x FlatDim0 x InC x FilterH x FilterW
+                tmp_lb_coefs = full_lb_coefs[..., h_start: h_end,
+                               w_start: w_end]  # Batch x FlatDim0 x InC x FilterH x FilterW
                 tmp_lb_cnsts = full_lb_cnsts[..., h_start: h_end, w_start: w_end]
                 tmp_ub_coefs = full_ub_coefs[..., h_start: h_end, w_start: w_end]
                 tmp_ub_cnsts = full_ub_cnsts[..., h_start: h_end, w_start: w_end]
@@ -1348,4 +1375,5 @@ class MaxPool2d(nn.MaxPool2d):
 
         # utils.pp_cuda_mem('Pool: After mem friendly final stacking')
         return Ele(full_lcoefs, full_lcnsts, full_ucoefs, full_ucnsts, e.dlb, e.dub)
+
     pass

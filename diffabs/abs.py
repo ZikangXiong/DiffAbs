@@ -1,6 +1,6 @@
 """ Base class for all abstract domain elements. """
 
-from __future__ import annotations
+# from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Iterator, Union
@@ -36,12 +36,12 @@ class AbsEle(ABC):
 
     @classmethod
     @abstractmethod
-    def by_intvl(cls, lb: Tensor, ub: Tensor) -> AbsEle:
+    def by_intvl(cls, lb: Tensor, ub: Tensor) -> 'AbsEle':
         """ Abstract a box to abstract elements by its lower/upper bounds. """
         raise NotImplementedError()
 
     @classmethod
-    def by_pt(cls, pt: Tensor) -> AbsEle:
+    def by_pt(cls, pt: Tensor) -> 'AbsEle':
         """ A degenerated abstraction that only contains one instance. """
         return cls.by_intvl(pt, pt)
 
@@ -98,17 +98,17 @@ class AbsEle(ABC):
     # ===== Below are pre-defined operations that every abstract element must support. =====
 
     @abstractmethod
-    def view(self, *shape) -> AbsEle:
+    def view(self, *shape) -> 'AbsEle':
         raise NotImplementedError()
 
     @abstractmethod
-    def contiguous(self) -> AbsEle:
+    def contiguous(self) -> 'AbsEle':
         raise NotImplementedError()
 
-    def to_dense(self) -> AbsEle:
+    def to_dense(self) -> 'AbsEle':
         return self
 
-    def squeeze(self, dim=None) -> AbsEle:
+    def squeeze(self, dim=None) -> 'AbsEle':
         shape = list(self.size())
         if dim is not None and shape[dim] != 1:
             # nothing to squeeze
@@ -121,7 +121,7 @@ class AbsEle(ABC):
             shape = shape[:dim] + shape[dim+1:]
         return self.view(*shape)
 
-    def unsqueeze(self, dim) -> AbsEle:
+    def unsqueeze(self, dim) -> 'AbsEle':
         if dim < 0:
             # following PyTorch doc
             dim = dim + self.dim() + 1
@@ -131,15 +131,15 @@ class AbsEle(ABC):
         return self.view(*shape)
 
     @abstractmethod
-    def transpose(self, dim0, dim1) -> AbsEle:
+    def transpose(self, dim0, dim1) -> 'AbsEle':
         raise NotImplementedError()
 
     @abstractmethod
-    def matmul(self, other: Tensor) -> AbsEle:
+    def matmul(self, other: Tensor) -> 'AbsEle':
         raise NotImplementedError()
 
     @abstractmethod
-    def __add__(self, other) -> AbsEle:
+    def __add__(self, other) -> 'AbsEle':
         raise NotImplementedError()
     pass
 
